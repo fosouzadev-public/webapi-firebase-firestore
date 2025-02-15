@@ -8,6 +8,8 @@ namespace WebApi.Controllers;
 [Route("api/store")]
 public class StoreController(FirestoreDb _database) : ControllerBase
 {
+    #region Store
+
     [HttpPost]
     public async Task<IActionResult> AddAsync([FromBody] Store store)
     {
@@ -79,4 +81,50 @@ public class StoreController(FirestoreDb _database) : ControllerBase
             MaxPageIndex = totalPages > 0 ? totalPages - 1 : totalPages
         });
     }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> DeleteAsync([FromRoute] string id)
+    {
+        DocumentReference storeRef = _database.Collection(nameof(Store)).Document(id);
+        DocumentSnapshot storeSnapshot = await storeRef.GetSnapshotAsync();
+
+        if (storeSnapshot.Exists == false)
+            return NotFound($"Store {id} not found.");
+
+        _ = await storeRef.DeleteAsync();
+
+        return NoContent();
+    }
+
+    #endregion
+
+    #region Product
+
+    [HttpPost("{id}/product")]
+    public async Task<IActionResult> AddAsync([FromRoute]string id, [FromBody] Product product)
+    {
+        DocumentReference storeRef = _database.Collection(nameof(Store)).Document(id);
+        DocumentSnapshot storeSnapshot = await storeRef.GetSnapshotAsync();
+
+        if (storeSnapshot.Exists == false)
+            return NotFound($"Store {id} not found.");
+
+        DocumentReference productRef = await storeRef.Collection(nameof(Product)).AddAsync(product);
+        DocumentSnapshot productSnapshot = await productRef.GetSnapshotAsync();
+        Product productInserted = productSnapshot.ConvertTo<Product>();
+
+        return Created($"store/{storeRef.Id}/product/{productRef.Id}", productInserted);
+    }
+
+    [HttpGet("{id}/product")]
+    public async Task<IActionResult> GetAsync([FromRoute]string id)
+    {
+        CollectionReference productRef = _database.Collection($"{nameof(Store)}/{id}/{nameof(Product)}");
+
+        QuerySnapshot productSnapshot = await productRef.GetSnapshotAsync();
+        
+        return Ok(productSnapshot.Documents.Select(a => a.ConvertTo<Product>()));
+    }
+
+    #endregion
 }
